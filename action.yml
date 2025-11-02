@@ -29,6 +29,10 @@ inputs:
     description: "whether or not to submit automatically"
     required: false
     default: false
+  whats-new-dir:
+    description: "whats new directory"
+    required: true
+    default: 'distribution/whatsnew'
 runs:
   using: "node16"
   main: "index.js"

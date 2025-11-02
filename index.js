@@ -1,10 +1,10 @@
 const core = require("@actions/core");
-const github = require("@actions/github");
 const chalk = require("chalk");
 var axios = require("axios");
 const figlet = require("figlet");
 var FormData = require("form-data");
 var fs = require("fs");
+const { readLocalizedReleaseNotes } = require("./whatsnew");
 
 const domain = "https://connect-api.cloud.huawei.com/api";
 
@@ -150,7 +150,38 @@ function updateAppFileInfo({ fileDestUrl, size, appId, clientId, token, fileExt,
   return axios(config);
 }
 
-async function startDeply({ clientId, clientKey, appId, fileExt, filePath, fileName, submit }) {
+/**
+ * Updating App File Information
+ * @param  {} whatsNewDir
+ * @param  {} appId
+ * @param  {} clientId
+ * @param  {} token
+ */
+async function updateAppLanguageInfo({ appId, clientId, token, whatsNewDir }) {
+  console.log("Update App Language Info .... ⌛️");
+  const localizedReleaseNotes = await readLocalizedReleaseNotes(whatsNewDir);
+  for (const localizedReleaseNote of localizedReleaseNotes) {
+    var data = JSON.stringify({
+      lang: localizedReleaseNote.language,
+      newFeatures: localizedReleaseNote.text,
+    });
+
+    var config = {
+      method: "put",
+      url: `${domain}/publish/v2/app-language-info?appId=${appId}`,
+      headers: {
+        client_id: clientId,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      data: data,
+    };
+    console.log(config);
+    // await axios(config);
+  }
+}
+
+async function startDeply({ clientId, clientKey, appId, fileExt, filePath, fileName, submit, whatsNewDir }) {
   try {
     const newToken = await getToken({
       clientId,
@@ -175,13 +206,21 @@ async function startDeply({ clientId, clientKey, appId, fileExt, filePath, fileN
     } else {
       core.setFailed("upload Failed ❌❌");
     }
+
+    await updateAppLanguageInfo({
+      appId: appId,
+      clientId: clientId,
+      whatsNewDir: whatsNewDir,
+      token: newToken.data.access_token,
+    });
+
     const updateFileInfo = await updateAppFileInfo({
       token: newToken.data.access_token,
       clientId,
       appId,
       size: uploadInfo.data.result.UploadFileRsp.fileInfoList[0].size,
       fileDestUrl:
-        uploadInfo.data.result.UploadFileRsp.fileInfoList[0].fileDestUlr,
+      uploadInfo.data.result.UploadFileRsp.fileInfoList[0].fileDestUlr,
       fileExt,
       fileName
     });
@@ -216,12 +255,13 @@ try {
   const filePath = core.getInput("file-path");
   const fileName = core.getInput("file-name");
   const submit = core.getInput("submit");
+  const whatsNewDir = core.getInput("whats-new-dir");
 
   console.log(
     chalk.yellow(figlet.textSync("AppGallery", { horizontalLayout: "full" }))
   );
 
-  startDeply({ clientId, clientKey, appId, fileExt, filePath, fileName, submit });
+  startDeply({ clientId, clientKey, appId, fileExt, filePath, fileName, submit, whatsNewDir });
 } catch (error) {
   core.setFailed(error.message);
 }
